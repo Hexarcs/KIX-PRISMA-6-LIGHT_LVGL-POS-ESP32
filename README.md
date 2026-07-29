@@ -54,14 +54,14 @@ This project is an open-source Bitcoin Point of Sale (POS) machine powered by an
 * Ensure your board is set to **ESP32 Dev Module** and the partition scheme is set to **Huge App**.
 
 ### 2. Flashing
-If you are starting from scratch, follow this step-by-step video guide on how to flash and compile:
-👉 **How to Flash from Zero:** https://youtu.be/vgjEAOR883I?si=2dsIBsVzTYJbWO1C
+* Connect your ESP32 device to your computer via USB.
+* Select the correct port and board configuration in the Arduino IDE, then compile and flash the firmware.
+
 ### 3. WiFi & Backend Configuration
 * Upon first boot, the POS will start its own Access Point (AP) named `AutoConnectAP`.
-* Connect your smartphone to this network.
+* Connect your smartphone or computer to this network.
 * A captive portal will appear. Enter your WiFi credentials.
 * Configure your LNbits credentials (API Key and URL) via the same interface.
-* **Backend Guide:** https://youtu.be/vgjEAOR883I?si=2dsIBsVzTYJbWO1C *(Note: Video covers most logic; update for latest commit coming soon).*
 
 ---
 
@@ -80,18 +80,10 @@ Use the Serial Monitor (**115200 baud**) for maintenance and remote control:
 
 Contributions are welcome! Feel free to submit Issues, Pull Requests, or discuss improvements. Join the Bitcoin revolution and help enable borderless payments for everyone! ⚡
 
-### 🧪 Testing
-You can create a test account on my LNbits instance to get an API key for development purposes:
-⚠️ **(DO NOT USE IT AS YOUR MAIN LIGHTNING WALLET)**
-👉 https://uvlnbits.libertariamemes.com.br/
-
 ### 💖 Donations
 Donations are greatly appreciated and help keep the project running!
 
 * **Lightning Address:** wildserendipity113982@getalby.com
-* **Donate via WebApp:**
-    * 👉 https://libertariamemes.com.br/pack_memes.html
-    * 👉 https://frionova.com.br/payment_LN_cp1.html
 
 ---
 
