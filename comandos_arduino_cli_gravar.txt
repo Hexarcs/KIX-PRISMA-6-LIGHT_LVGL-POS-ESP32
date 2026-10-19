@@ -1,0 +1,42 @@
+arduino-cli compile \
+  --fqbn esp32:esp32:esp32:PartitionScheme=huge_app \
+  --libraries ./libraries \
+  --jobs 4 \
+  --build-property compiler.c.extra_flags="-Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-implicit-function-declaration" \
+  --verbose \
+  KIX_POS
+#upload
+arduino-cli upload \
+  -p /dev/ttyUSB0 \
+  --fqbn esp32:esp32:esp32:PartitionScheme=huge_app \
+  KIX_POS
+##compilar e gravar
+arduino-cli compile \
+  --fqbn esp32:esp32:esp32:PartitionScheme=huge_app \
+  --libraries ./libraries \
+  --jobs 4 \
+  --build-property compiler.c.extra_flags="-Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-implicit-function-declaration" \
+  --verbose \
+  KIX_POS \
+&& \
+arduino-cli upload \
+  -p /dev/ttyUSB0 \
+  --fqbn esp32:esp32:esp32:PartitionScheme=huge_app \
+  KIX_POS
+
+
+#testar serial
+arduino-cli monitor -p /dev/ttyUSB0 -c baudrate=115200
+
+
+
+#exportar binario
+
+arduino-cli compile \
+  --verbose \
+  --fqbn esp32:esp32:esp32:PartitionScheme=huge_app \
+  --libraries ./libraries \
+  --jobs 4 \
+  --build-property compiler.c.extra_flags="-Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-implicit-function-declaration" \
+  --output-dir ./build_output \
+  KIX_POS
