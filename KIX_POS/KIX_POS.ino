@@ -66,9 +66,9 @@ const char* api_url = "https://rest.coinapi.io/v1/exchangerate/BTC/USD";
 //const char* lnbits_X_api_key = "make your key at uvlnbits.libertariamemes.com.br";
 //const char* lnbits_api_key = "make your key at uvlnbits.libertariamemes.com.br";
 // Agora são Strings mutáveis na RAM
-String lnbits_url = "http://34.226.196.147:5004/api/v1/payments";
-String lnbits_api_key = "2b273ca3d3a84db4a3857ff54776aa96"; 
-String lnbits_X_api_key = "2b273ca3d3a84db4a3857ff54776aa96";
+String lnbits_url = "https://engine-1.hexarcs.com/api/v1/payments";
+String lnbits_api_key = "5e3e9788bd634d82882f849d7fba3b54"; 
+String lnbits_X_api_key = "5e3e9788bd634d82882f849d7fba3b54";
 
 
 
@@ -133,6 +133,7 @@ static uint32_t my_tick(void) {
 /* --- MAIN SETUP --- */
 void setup() {
   Serial.begin(115200);
+  //if (SPIFFS.begin(true)) { File f = SPIFFS.open("/config.txt", "w"); if (f) { f.println("https://engine-1.hexarcs.com/api/v1/payments"); f.println("5e3e9788bd634d82882f849d7fba3b54"); f.close(); } SPIFFS.end(); } ///apenas sobrescreve caso a spffis esteja com valores errados 
   delay(500); // Aguarda a serial estabilizar para debug inicial
   
   // 1. Inicia SPIFFS com tentativa de montagem limpa
@@ -641,8 +642,9 @@ void check_cancel_touch() {
 
 /* --- PAYMENT VERIFICATION --- */
 /* --- PAYMENT VERIFICATION --- */
+
 void verify_payment() {
-  // 🔴 Immediate cancel
+  // 1. Cancelamento por toque
   if (cancel_verification_requested) {
     Serial.println(">>> PAYMENT CHECK CANCELLED BY TOUCH <<<");
     cancel_verification_requested = false;
@@ -654,114 +656,105 @@ void verify_payment() {
     tft.setTextSize(2);
     tft.setCursor(20, 120);
     tft.println("PAYMENT CANCELED");
-    delay(2000);
+    delay(1500);
 
     ui_init();
     return;
   }
 
-  if (!waiting_for_payment || current_payment_hash == "" || WiFi.status() != WL_CONNECTED) return;
-
-  // Manual Serial Override
-  if (Serial.available() > 0) {
-    char incoming = Serial.read();
-    if (incoming == 'c' || incoming == 'C' || incoming == 'x' || incoming == 'X') {
-      Serial.println("\n >>> MANUAL CANCELLATION VIA SERIAL <<<");
-      waiting_for_payment = false;
-      current_payment_hash = "";
-
-      tft.fillScreen(TFT_YELLOW);
-      tft.setTextColor(TFT_BLACK);
-      tft.setTextSize(2);
-      tft.setCursor(20, 120);
-      tft.println("PAYMENT CANCELED");
-      delay(500);
-
-      //ui_init();
-      return;
-    }
+  // 2. Verificacoes iniciais
+  if (!waiting_for_payment ||
+      current_payment_hash == "" ||
+      WiFi.status() != WL_CONNECTED) {
+    return;
   }
 
-  check_count++;
-  Serial.printf("\n--- Checking Payment Status (%d/40) ---\n", check_count);
+  // 3. Consulta direta ao LNbits
+  Serial.println("\n--- Verificando pagamento diretamente no LNbits ---");
 
   WiFiClientSecure client;
   client.setInsecure();
-  client.setHandshakeTimeout(30);
+  client.setHandshakeTimeout(15);
 
   HTTPClient http;
-  http.begin(client, "https://libertariamemes.com.br/check_payment");
-  http.setTimeout(15000);
+  String check_url = lnbits_url + "/" + current_payment_hash;
 
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("User-Agent", "ESP32-POS-Terminal");
+  if (!http.begin(client, check_url)) {
+    Serial.println("[ERRO] Falha ao iniciar requisicao LNbits.");
+    return;
+  }
 
-  String jsonReq = "{\"payment_hash\":\"" + current_payment_hash + "\"}";
-  Serial.print("Checking Hash: "); Serial.println(current_payment_hash);
+  http.setTimeout(10000);
+  http.addHeader("X-Api-Key", lnbits_api_key);
+  http.addHeader("User-Agent", "ESP32-KIX-POS");
 
-  // 🧠 Keep LVGL alive + avoid watchdog
-  lv_timer_handler();
-  yield();
-  delay(1);
-
-  int httpCode = http.POST(jsonReq);
-
-  // 🧠 Keep LVGL alive again
-  lv_timer_handler();
-  yield();
-  delay(1);
+  int httpCode = http.GET();
 
   if (httpCode == 200) {
     String payload = http.getString();
 
-    static DynamicJsonDocument doc(2048);
-    static DynamicJsonDocument lnbitsResult(1024);
-    doc.clear();
-    lnbitsResult.clear();
+    DynamicJsonDocument doc(1024);
+    DeserializationError error = deserializeJson(doc, payload);
 
-    deserializeJson(doc, payload);
+    if (error) {
+      Serial.print("[ERRO] JSON invalido: ");
+      Serial.println(error.c_str());
+    } else if (!doc.containsKey("paid")) {
+      Serial.println("[ERRO] Resposta LNbits sem campo 'paid'.");
+      Serial.println(payload);
+    } else if (doc["paid"].as<bool>()) {
+      Serial.println(">>> PAGAMENTO CONFIRMADO PELO LNBITS! <<<");
 
-    if (doc["success"] == true && doc.containsKey("stdout")) {
-      String stdoutStr = doc["stdout"];
-      deserializeJson(lnbitsResult, stdoutStr);
+      http.end();
 
-      if (lnbitsResult["paid"] == true) {
-        Serial.println("🎉 PAYMENT CONFIRMED!");
-        tft.fillScreen(TFT_GREEN);
-        tft.setTextColor(TFT_BLACK);
-        tft.setCursor(40, 100);
-        tft.setTextSize(3);
-        tft.println("PAID OK");
+      waiting_for_payment = false;
+      current_payment_hash = "";
+      check_count = 0;
 
-        waiting_for_payment = false;
-        current_payment_hash = "";
-        return;
-      } else {
-        Serial.println("Status: Unpaid.");
-      }
+      tft.fillScreen(TFT_GREEN);
+      tft.setTextColor(TFT_BLACK);
+      tft.setTextSize(3);
+      tft.setCursor(40, 100);
+      tft.println("PAID OK");
+
+      return;
+    } else {
+      Serial.println("Pagamento ainda nao recebido.");
     }
   } else {
-    Serial.printf("Request Failed: %s (%d)\n", http.errorToString(httpCode).c_str(), httpCode);
+    Serial.printf("[LNbits] Erro HTTP: %d\n", httpCode);
+
+    if (httpCode > 0) {
+      String response = http.getString();
+      Serial.println(response);
+    } else {
+      Serial.println(http.errorToString(httpCode));
+    }
   }
 
   http.end();
 
-  // 🔴 Timeout
+  // 4. Timeout: 40 verificacoes
+  check_count++;
+
   if (check_count >= 40) {
-    Serial.println("Polling Timeout Reached.");
+    Serial.println(">>> TIMEOUT: PAGAMENTO NAO CONFIRMADO <<<");
+
     waiting_for_payment = false;
     current_payment_hash = "";
+    check_count = 0;
 
     tft.fillScreen(TFT_YELLOW);
     tft.setTextColor(TFT_BLACK);
     tft.setTextSize(2);
     tft.setCursor(40, 120);
     tft.println("PAYMENT TIMEOUT");
-    delay(2000);
+    delay(1500);
 
-    //ui_init();
+    ui_init();
   }
 }
+
 
 void hardSafeSave() {
   Serial.println("\n[!] BLOQUEIO TOTAL: MODO SEGURANCA...");
